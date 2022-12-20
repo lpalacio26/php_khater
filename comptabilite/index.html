@@ -1,0 +1,240 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <title>Comptabilité</title>
+    <link rel="stylesheet" href="css/stylesheet.css" />
+  </head>
+  <body>
+    <header id="test">Comptabilité</header>
+
+    <!-- onsubmit ="return false" sinon le site refresh en faisant click sur Ajouter sans ajouter la commande sur la base de données -->
+    <form onsubmit="add(); return false" name="form" class="add-main">
+      <input required type="date" name="date" id="date" placeholder="Date" />
+      <input
+        required
+        pattern="[a-zA-Z\p{L}\s]+"
+        type="text"
+        name="client"
+        id="client"
+        placeholder="Client"
+      />
+
+      <!-- pattern sans single quotes parce-que sinon ça bug 
+        (je pense que le code l'interprète comme si on fermait le string de update_form(), 
+        potentiel problème de sécurité parce-qu'on pourrait introduire du code à travers cela?)
+      par contre je ne sais pas pourquoi ça marche avec les double quotes-->
+      <input
+        required
+        pattern="^[^']+"
+        type="text"
+        name="product"
+        id="product"
+        placeholder="Produit"
+      />
+      <input
+        required
+        type="number"
+        min="0"
+        step="1"
+        name="quantity"
+        id="quantity"
+        placeholder="Quantité"
+      />
+      <input
+        required
+        type="number"
+        min="0"
+        step="0.01"
+        name="price"
+        id="price"
+        placeholder="Prix Unitaire"
+      />
+      <button type="submit" id="add-button" class="add-button">Ajouter</button>
+    </form>
+
+    <div class="table-main">
+      <table id="commandes">
+        <tr>
+          <th>Date</th>
+          <th>Client</th>
+          <th>Produit</th>
+          <th>Quantité</th>
+          <th>Prix Unitaire</th>
+          <th>Total</th>
+        </tr>
+      </table>
+    </div>
+
+    <div class="last-info" id="last-info"></div>
+
+    <script type="text/javascript">
+      $.get("commandes.php", function (data) {
+        $("#commandes").html(data);
+      });
+
+      $.get("total_commandes.php", function (data) {
+        $("#last-info").html(data);
+      });
+
+      //Côté client (pas besoin de refresh)
+      function update_form(remove_id) {
+        var total = $("#quantity").val() * $("#price").val();
+        let price = parseFloat($("#price").val());
+        new_row =
+          "<tr id='tr_" +
+          remove_id +
+          "'>" +
+          "<td>" +
+          $("#date").val() +
+          "</td>" +
+          "<td>" +
+          $("#client").val() +
+          "</td>" +
+          "<td>" +
+          $("#product").val() +
+          "</td>" +
+          "<td>" +
+          $("#quantity").val() +
+          "</td>" +
+          "<td>" +
+          price.toFixed(2) +
+          "€</td>" +
+          "<td class = 'total-per-item'>" +
+          total.toFixed(2) +
+          "€</td>" +
+          "<td><button class='btn' onclick='remove(" +
+          remove_id +
+          ");'></button></td>" +
+          "</tr>";
+      }
+
+      function add() {
+        $.post(
+          "commandes.php",
+          {
+            date: $("#date").val(),
+            client: $("#client").val(),
+            product: $("#product").val(),
+            quantity: $("#quantity").val(),
+            price: $("#price").val(),
+          },
+          function (data) {
+            // alert(data);
+            update_form(data);
+            $(new_row).appendTo($("#commandes"));
+            update_total_orders();
+            calc_total();
+          }
+        );
+      }
+
+      function remove(delete_id) {
+        //ENLEVEZ LES COMMENTAIRES POUR CONFIRMER AVANT DE SUPPRIMER
+        // if (
+        //   confirm(
+        //     "Êtes-vous sûr(e) de vouloir supprimer cette commande? Clickez sur OK pour confirmer."
+        //   )
+        // ) {
+        $.ajax({
+          url: "delete_ajax.php",
+          type: "post",
+          data: "id=" + delete_id,
+          // Côté client
+          success: function (result) {
+            $("#tr_" + delete_id + " td").css("background", "tomato");
+            $("#tr_" + delete_id).hide(500, function () {
+              $("#tr_" + delete_id).remove();
+              update_total_orders();
+              calc_total();
+            });
+          },
+        });
+
+        //ENLEVEZ ICI AUSSI
+        // } else {
+        //   return false;
+        // }
+      }
+
+      function update_total_orders() {
+        document.getElementById("total-orders").innerHTML =
+          $("#commandes tr").length - 1;
+      }
+
+      var new_row = "";
+
+      //Pareil que onclick='add()', je ne sais plus pour quoi je l'avais utilisé (il me semble que c'était pour tester une fonctionnalité):
+
+      // $("#add-button").click(function () {
+      //   add();
+      // });
+
+      // Mettre à jour le total en €
+      function calc_total() {
+        var sum = 0;
+        $(".total-per-item").each(function () {
+          sum += parseFloat($(this).text());
+        });
+        document.getElementById("total-euros").innerHTML = sum.toFixed(2);
+      }
+
+      function sortTable(n) {
+  var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+  table = document.getElementById("commandes");
+  switching = true;
+  //Set the sorting direction to ascending:
+  dir = "asc"; 
+  /*Make a loop that will continue until
+  no switching has been done:*/
+  while (switching) {
+    //start by saying: no switching is done:
+    switching = false;
+    rows = table.rows;
+    /*Loop through all table rows (except the
+    first, which contains table headers):*/
+    for (i = 1; i < (rows.length - 1); i++) {
+      //start by saying there should be no switching:
+      shouldSwitch = false;
+      /*Get the two elements you want to compare,
+      one from current row and one from the next:*/
+      x = rows[i].getElementsByTagName("TD")[n];
+      y = rows[i + 1].getElementsByTagName("TD")[n];
+      /*check if the two rows should switch place,
+      based on the direction, asc or desc:*/
+      if (dir == "asc") {
+        if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+          //if so, mark as a switch and break the loop:
+          shouldSwitch= true;
+          break;
+        }
+      } else if (dir == "desc") {
+        if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+          //if so, mark as a switch and break the loop:
+          shouldSwitch = true;
+          break;
+        }
+      }
+    }
+    if (shouldSwitch) {
+      /*If a switch has been marked, make the switch
+      and mark that a switch has been done:*/
+      rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+      switching = true;
+      //Each time a switch is done, increase this count by 1:
+      switchcount ++;      
+    } else {
+      /*If no switching has been done AND the direction is "asc",
+      set the direction to "desc" and run the while loop again.*/
+      if (switchcount == 0 && dir == "asc") {
+        dir = "desc";
+        switching = true;
+      }
+    }
+  }
+}
+    </script>
+  </body>
+</html>
